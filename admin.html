@@ -13,12 +13,15 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="crypto.js"></script>
 <script>
-// 合言葉と単語の一覧（控え）はこのブラウザと控えファイルにだけ保存する。リポジトリには暗号化した words.json だけを置く
+// 合言葉・単語・画像情報の一覧（控え）はこのブラウザと控えファイルにだけ保存する。
+// リポジトリには暗号化した words.json と画像ファイル（img-*.bin）だけを置く
 const KEY = 'mbqr-secret';
 const root = document.getElementById('root');
 const esc = MB.esc;
 const defaultBase = location.href.replace(/[#?].*$/, '').replace(/admin\.html$/, '');
 let pub = null, sec = null, status = null;
+const pending = new Map();   // まだ書き出していない画像: ファイル名 → 暗号化済みデータ
+const previews = new Map();  // ファイル名 → 表示用URL（null は読み込み失敗）
 
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
 const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(sec)); } catch (e) {} };
@@ -29,7 +32,7 @@ function saveFile(name, blob) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 function drawQR(canvas, text) {
   if (!text || typeof qrcode !== 'function') { canvas.width = canvas.height = 1; return; }
@@ -41,26 +44,67 @@ function drawQR(canvas, text) {
   for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) ctx.fillRect((c + q) * s, (r + q) * s, s, s);
 }
 
+// 大きい画像はスマホで読み込みやすいよう長辺1600pxのJPEGに縮める
+async function prepareImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, ng) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ng; i.src = url; });
+    const max = 1600, big = Math.max(img.naturalWidth, img.naturalHeight);
+    if (file.size <= 1024 * 1024 && big <= max && /^image\/(jpeg|png|webp|gif)$/.test(file.type))
+      return { bytes: new Uint8Array(await file.arrayBuffer()), type: file.type };
+    const r = Math.min(1, max / big), c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * r); c.height = Math.round(img.naturalHeight * r);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), type: 'image/jpeg' };
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function loadPreview(it) {
+  const f = it.img.f;
+  if (previews.has(f)) return;
+  previews.set(f, undefined);
+  try {
+    const res = await fetch(f, { cache: 'no-store' });
+    if (!res.ok) throw 0;
+    const bytes = await MB.openBytes(sec.salt, it.token, it.img.iv, new Uint8Array(await res.arrayBuffer()));
+    previews.set(f, URL.createObjectURL(new Blob([bytes], { type: it.img.type })));
+  } catch (e) { previews.set(f, null); }
+  render();
+}
+
+function thumbHTML(it, i) {
+  if (!it.img) return `<div class="thumb"><div class="none">画像なし</div>
+    <label class="file">画像を選ぶ<input type="file" accept="image/*" data-img="${i}"></label></div>`;
+  const p = previews.get(it.img.f);
+  const pic = p ? `<img src="${p}" alt="">` : `<div class="none">${p === null ? '未アップロード' : '読み込み中'}</div>`;
+  return `<div class="thumb">${pic}
+    <div class="row start">${pending.has(it.img.f) ? '<span class="tag">未書き出し</span>' : ''}
+    <label class="file">画像を変更<input type="file" accept="image/*" data-img="${i}"></label>
+    <button class="sub" data-noimg="${i}" type="button">画像を外す</button></div></div>`;
+}
+
 function render() {
   const mismatch = sec.salt !== pub.salt;
   root.innerHTML = `
     <div class="adminhead"><h1>QRキーワード 管理</h1></div>
-    <div class="lead">QRコードごとに表示する単語を設定します。手順：
-      <ol><li>単語を入力して「公開用ファイルを書き出す」を押す</li>
-      <li>書き出した <code>words.json</code> を GitHub のリポジトリにアップロードして上書きする（数分で反映）</li>
+    <div class="lead">QRコードごとに、表示する単語と画像を設定します（どちらか一方だけでも構いません）。手順：
+      <ol><li>単語や画像を設定して「公開用ファイルを書き出す」を押す（words.json と、新しく選んだ画像のファイル img-〜.bin が保存されます）</li>
+      <li>書き出したファイルをすべて GitHub のリポジトリにアップロードする（数分で反映）</li>
       <li>反映を「開いて確認」で確かめてから、QRコードを印刷する</li></ol>
-      合言葉と単語の控えはこのブラウザに保存されます。別の端末やブラウザで管理するときのために「控えファイル」も書き出して保管してください。控えファイルは公開しないでください。</div>
+      控えはこのブラウザに保存されます。別の端末で管理するときのために「控えファイル」も書き出して保管してください。控えファイルは公開しないでください。</div>
     ${mismatch ? '<p class="msg ng">この控えは、今公開中の words.json とは別のものです。正しい控えファイルを読み込むか、このまま書き出して words.json を置き換えてください。</p>' : ''}
     <label class="f">QRコードに入れるページのURL<input type="text" id="base" value="${esc(sec.base)}" autocomplete="off"></label>
     ${sec.entries.length ? sec.entries.map((it, i) => `<section class="item">
       <div class="qr"><canvas id="qr-${i}" aria-label="QRコード ${i + 1}"></canvas></div>
       <div class="fields">
         <header><h2>QR ${pad(i)}</h2><button class="sub" data-del="${i}" type="button">削除</button></header>
-        <label class="f">表示する単語<input type="text" id="word-${i}" value="${esc(it.word)}" placeholder="例：むらさき" autocomplete="off"></label>
+        <label class="f">表示する単語<input type="text" id="word-${i}" value="${esc(it.word)}" placeholder="例：むらさき（画像だけなら空欄）" autocomplete="off"></label>
+        <div class="f"><span class="f">表示する画像</span>${thumbHTML(it, i)}</div>
         <label class="f">メモ（管理用・参加者には表示されません）<input type="text" id="memo-${i}" value="${esc(it.memo)}" placeholder="例：入口の掲示板" autocomplete="off"></label>
         <div class="url">${esc(urlFor(it.token))}</div>
         <div class="row start">
-          <button class="sub" data-png="${i}" type="button">PNGで保存</button>
+          <button class="sub" data-png="${i}" type="button">QRをPNGで保存</button>
           <a class="sub" href="${esc(urlFor(it.token))}" target="_blank" rel="noopener">開いて確認</a>
         </div>
       </div></section>`).join('') : '<p class="empty">まだQRコードがありません。「＋ QRコードを追加」から作成してください。</p>'}
@@ -79,22 +123,44 @@ function render() {
     drawQR(document.getElementById('qr-' + i), urlFor(it.token));
     document.getElementById('word-' + i).oninput = e => { it.word = e.target.value; keep(); };
     document.getElementById('memo-' + i).oninput = e => { it.memo = e.target.value; keep(); };
+    if (it.img && !previews.has(it.img.f)) loadPreview(it);
   });
   document.getElementById('base').onchange = e => { sec.base = e.target.value.trim(); keep(); render(); };
   root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { sec.entries.splice(+b.dataset.del, 1); keep(); render(); });
+  root.querySelectorAll('[data-noimg]').forEach(b => b.onclick = () => { sec.entries[+b.dataset.noimg].img = null; keep(); render(); });
+  root.querySelectorAll('[data-img]').forEach(inp => inp.onchange = async () => {
+    const f = inp.files[0], it = sec.entries[+inp.dataset.img]; if (!f) return;
+    say('', '画像を準備しています…');
+    try {
+      const { bytes, type } = await prepareImage(f);
+      const { iv, data } = await MB.sealBytes(sec.salt, it.token, bytes);
+      const name = MB.newImageName();
+      pending.set(name, data);
+      previews.set(name, URL.createObjectURL(new Blob([bytes], { type })));
+      it.img = { f: name, iv, type, name: f.name };
+      keep(); render();
+    } catch (e) { say('ng', 'この画像は読み込めませんでした。JPEGかPNGの画像を選んでください。'); }
+  });
   root.querySelectorAll('[data-png]').forEach(b => b.onclick = () => {
     const i = +b.dataset.png, c = document.createElement('canvas'); drawQR(c, urlFor(sec.entries[i].token));
     const name = (sec.entries[i].memo || sec.entries[i].word || 'qr').replace(/[\\/:*?"<>|\s]+/g, '_');
     c.toBlob(blob => saveFile(`QR${pad(i)}_${name}.png`, blob), 'image/png');
   });
-  document.getElementById('add').onclick = () => { sec.entries.push({ token: MB.newToken(), word: '', memo: '' }); keep(); render(); document.getElementById('word-' + (sec.entries.length - 1)).focus(); };
+  document.getElementById('add').onclick = () => { sec.entries.push({ token: MB.newToken(), word: '', memo: '', img: null }); keep(); render(); document.getElementById('word-' + (sec.entries.length - 1)).focus(); };
   document.getElementById('export').onclick = async () => {
-    const empty = sec.entries.findIndex(e => !e.word.trim());
-    if (empty >= 0) return say('ng', `QR ${pad(empty)} の単語が空欄です`);
+    const empty = sec.entries.findIndex(e => !e.word.trim() && !e.img);
+    if (empty >= 0) return say('ng', `QR ${pad(empty)} に単語も画像も設定されていません`);
     const words = [];
-    for (const e of sec.entries) words.push(await MB.seal(sec.salt, e.token, e.word.trim()));
+    for (const e of sec.entries) words.push(await MB.seal(sec.salt, e.token, { w: e.word.trim(), img: e.img ? { f: e.img.f, iv: e.img.iv, type: e.img.type } : null }));
     saveFile('words.json', new Blob([JSON.stringify({ salt: sec.salt, words })], { type: 'application/json' }));
-    say('ok', 'words.json を書き出しました。GitHub にアップロードして上書きしてください。');
+    const used = new Set(sec.entries.filter(e => e.img).map(e => e.img.f));
+    const files = [...pending.keys()].filter(f => used.has(f));
+    files.forEach((f, k) => setTimeout(() => saveFile(f, new Blob([pending.get(f)], { type: 'application/octet-stream' })), 400 * (k + 1)));
+    files.forEach(f => pending.delete(f));
+    status = { t: 'ok', x: files.length
+      ? `words.json と画像ファイル ${files.length} 個を書き出しました。すべて GitHub にアップロードしてください。（ブラウザが複数ファイルの保存を確認してきたら許可してください）`
+      : 'words.json を書き出しました。GitHub にアップロードして上書きしてください。' };
+    render();
   };
   document.getElementById('backup').onclick = () => saveFile('mysterybox-qr-控え.json', new Blob([JSON.stringify(sec, null, 1)], { type: 'application/json' }));
   document.getElementById('import').onchange = async e => {
@@ -102,7 +168,7 @@ function render() {
     try {
       const d = JSON.parse(await f.text());
       if (!d.salt || !Array.isArray(d.entries)) throw 0;
-      sec = { salt: d.salt, base: d.base || defaultBase, entries: d.entries.map(x => ({ token: x.token, word: x.word || '', memo: x.memo || '' })) };
+      sec = { salt: d.salt, base: d.base || defaultBase, entries: d.entries.map(x => ({ token: x.token, word: x.word || '', memo: x.memo || '', img: x.img || null })) };
       keep(); status = { t: 'ok', x: '控えファイルを読み込みました' }; render();
     } catch (x) { say('ng', '控えファイルとして読み込めませんでした'); }
   };
@@ -113,6 +179,7 @@ function render() {
   catch (e) { root.innerHTML = '<p class="msg ng">words.json を読み込めませんでした。ページを読み込み直してください。</p>'; return; }
   sec = load();
   if (!sec) sec = { salt: pub.salt, base: defaultBase, entries: [] };
+  sec.entries.forEach(e => { if (e.img === undefined) e.img = null; });
   render();
 })();
 </script>

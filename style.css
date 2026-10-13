@@ -19,6 +19,12 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .show{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
 .word{margin:0;font-family:var(--f-display);font-weight:800;font-size:clamp(2.2rem,11vw,3.6rem);line-height:1.25;color:var(--purple);letter-spacing:.08em;overflow-wrap:anywhere;text-wrap:balance}
 .rule{width:48px;height:2px;background:var(--purple);opacity:.6}
+.pic{width:100%;display:grid;place-items:center}
+.pic img{display:block;max-width:100%;max-height:70vh;border-radius:6px;border:1px solid var(--line)}
+.thumb{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.thumb img{width:72px;height:72px;object-fit:cover;border-radius:4px;border:1px solid var(--line)}
+.thumb .none{width:72px;height:72px;border:1px dashed var(--line);border-radius:4px;display:grid;place-items:center;font-size:.7rem;color:var(--muted);text-align:center}
+.tag{font-size:.72rem;padding:2px 8px;border-radius:10px;border:1px solid var(--ng);color:var(--ng)}
 .wait{margin:0;font-family:var(--f-display);font-size:1.5rem}
 .sub-t{margin:0;color:var(--muted);font-size:.9rem}
 .ngt{color:var(--ng)}

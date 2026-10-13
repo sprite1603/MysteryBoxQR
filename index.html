@@ -23,11 +23,25 @@ async function render() {
     catch (e) { return view('<p class="wait ngt">読み込めませんでした</p><div class="rule"></div><p class="sub-t">通信状況を確認して、ページを読み込み直してください。</p>'); }
   }
   view('<p class="sub-t">読み込んでいます…</p>');
-  const word = await MB.open(config, token);
+  const item = await MB.open(config, token);
   if (location.hash.slice(1) !== token) return;
-  view(word === null
-    ? '<p class="wait ngt">このQRコードは登録されていません</p><div class="rule"></div><p class="sub-t">読み取ったQRコードをもう一度確認してください。</p>'
-    : `<p class="word flash">${MB.esc(word)}</p><div class="rule"></div>`);
+  if (item === null) return view('<p class="wait ngt">このQRコードは登録されていません</p><div class="rule"></div><p class="sub-t">読み取ったQRコードをもう一度確認してください。</p>');
+  view((item.w ? `<p class="word flash">${MB.esc(item.w)}</p><div class="rule"></div>` : '')
+    + (item.img ? '<div class="pic flash" id="pic"><p class="sub-t">画像を読み込んでいます…</p></div>' : ''));
+  if (!item.img) return;
+  const pic = document.getElementById('pic');
+  try {
+    const res = await fetch(item.img.f);
+    if (!res.ok) throw 0;
+    const bytes = await MB.openBytes(config.salt, token, item.img.iv, new Uint8Array(await res.arrayBuffer()));
+    if (location.hash.slice(1) !== token) return;
+    const img = new Image();
+    img.alt = item.w || '画像';
+    img.src = URL.createObjectURL(new Blob([bytes], { type: item.img.type || 'image/jpeg' }));
+    pic.replaceChildren(img);
+  } catch (e) {
+    pic.innerHTML = '<p class="sub-t ngt">画像を読み込めませんでした。ページを読み込み直してください。</p>';
+  }
 }
 window.addEventListener('hashchange', render);
 render();
