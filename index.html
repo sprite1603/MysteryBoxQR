@@ -9,25 +9,25 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="wrap"><div class="panel"><div class="show" id="show"><span class="eyebrow">KEYWORD</span><p class="sub-t">読み込んでいます…</p></div></div></div>
+<div class="wrap"><div class="panel"><div class="show" id="show"><p class="sub-t">読み込んでいます…</p></div></div></div>
 <script src="crypto.js"></script>
 <script>
 const show = document.getElementById('show');
 const hashToken = () => { const h = location.hash.slice(1); try { return decodeURIComponent(h); } catch (e) { return h; } };
 let config = null;
-const view = (body) => { show.innerHTML = '<span class="eyebrow">KEYWORD</span>' + body; };
+const view = (body) => { show.innerHTML = body; };
 async function render() {
   const token = hashToken();
-  if (!token) return view('<p class="wait">QRコードを読み取ってください</p><div class="rule"></div><p class="sub-t">会場にあるQRコードを読み取ると、ここに単語が表示されます。</p>');
+  if (!token) return view('<p class="wait">QRコードを読み取ってください</p><p class="sub-t">会場にあるQRコードを読み取ると、ここに単語が表示されます。</p>');
   if (!config) {
     try { config = await (await fetch('words.json', { cache: 'no-store' })).json(); }
-    catch (e) { return view('<p class="wait ngt">読み込めませんでした</p><div class="rule"></div><p class="sub-t">通信状況を確認して、ページを読み込み直してください。</p>'); }
+    catch (e) { return view('<p class="wait ngt">読み込めませんでした</p><p class="sub-t">通信状況を確認して、ページを読み込み直してください。</p>'); }
   }
   view('<p class="sub-t">読み込んでいます…</p>');
   const item = await MB.open(config, token);
   if (hashToken() !== token) return;
-  if (item === null) return view('<p class="wait ngt">このQRコードは登録されていません</p><div class="rule"></div><p class="sub-t">読み取ったQRコードをもう一度確認してください。</p>');
-  view((item.w ? `<p class="word flash">${MB.esc(item.w)}</p><div class="rule"></div>` : '')
+  if (item === null) return view('<p class="wait ngt">このQRコードは登録されていません</p><p class="sub-t">読み取ったQRコードをもう一度確認してください。</p>');
+  view((item.w ? `<p class="word flash">${MB.esc(item.w)}</p>` : '')
     + (item.img ? '<div class="pic flash" id="pic"><p class="sub-t">画像を読み込んでいます…</p></div>' : ''));
   if (!item.img) return;
   const pic = document.getElementById('pic');
