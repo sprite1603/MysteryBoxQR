@@ -13,10 +13,11 @@
 <script src="crypto.js"></script>
 <script>
 const show = document.getElementById('show');
+const hashToken = () => { const h = location.hash.slice(1); try { return decodeURIComponent(h); } catch (e) { return h; } };
 let config = null;
 const view = (body) => { show.innerHTML = '<span class="eyebrow">KEYWORD</span>' + body; };
 async function render() {
-  const token = location.hash.slice(1);
+  const token = hashToken();
   if (!token) return view('<p class="wait">QRコードを読み取ってください</p><div class="rule"></div><p class="sub-t">会場にあるQRコードを読み取ると、ここに単語が表示されます。</p>');
   if (!config) {
     try { config = await (await fetch('words.json', { cache: 'no-store' })).json(); }
@@ -24,7 +25,7 @@ async function render() {
   }
   view('<p class="sub-t">読み込んでいます…</p>');
   const item = await MB.open(config, token);
-  if (location.hash.slice(1) !== token) return;
+  if (hashToken() !== token) return;
   if (item === null) return view('<p class="wait ngt">このQRコードは登録されていません</p><div class="rule"></div><p class="sub-t">読み取ったQRコードをもう一度確認してください。</p>');
   view((item.w ? `<p class="word flash">${MB.esc(item.w)}</p><div class="rule"></div>` : '')
     + (item.img ? '<div class="pic flash" id="pic"><p class="sub-t">画像を読み込んでいます…</p></div>' : ''));
@@ -34,7 +35,7 @@ async function render() {
     const res = await fetch(item.img.f);
     if (!res.ok) throw 0;
     const bytes = await MB.openBytes(config.salt, token, item.img.iv, new Uint8Array(await res.arrayBuffer()));
-    if (location.hash.slice(1) !== token) return;
+    if (hashToken() !== token) return;
     const img = new Image();
     img.alt = item.w || '画像';
     img.src = URL.createObjectURL(new Blob([bytes], { type: item.img.type || 'image/jpeg' }));

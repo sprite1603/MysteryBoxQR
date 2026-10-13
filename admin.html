@@ -25,7 +25,7 @@ const previews = new Map();  // ファイル名 → 表示用URL（null は読�
 
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
 const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(sec)); } catch (e) {} };
-const urlFor = t => sec.base ? sec.base.replace(/#.*$/, '') + '#' + t : '';
+const urlFor = t => sec.base ? sec.base.replace(/#.*$/, '') + '#' + encodeURIComponent(t) : '';
 const pad = i => String(i + 1).padStart(2, '0');
 
 function saveFile(name, blob) {
@@ -99,6 +99,8 @@ function render() {
       <div class="qr"><canvas id="qr-${i}" aria-label="QRコード ${i + 1}"></canvas></div>
       <div class="fields">
         <header><h2>QR ${pad(i)}</h2><button class="sub" data-del="${i}" type="button">削除</button></header>
+        <label class="f">合言葉（URLの#以降・変更するとQRコードも変わります）<input type="text" id="tok-${i}" value="${esc(it.token)}" autocomplete="off" spellcheck="false"></label>
+        ${it.token.length < 8 ? '<p class="sub-t ngt" style="font-size:.78rem">合言葉が短いと、URLを推測して開かれるおそれがあります。</p>' : ''}
         <label class="f">表示する単語<input type="text" id="word-${i}" value="${esc(it.word)}" placeholder="例：むらさき（画像だけなら空欄）" autocomplete="off"></label>
         <div class="f"><span class="f">表示する画像</span>${thumbHTML(it, i)}</div>
         <label class="f">メモ（管理用・参加者には表示されません）<input type="text" id="memo-${i}" value="${esc(it.memo)}" placeholder="例：入口の掲示板" autocomplete="off"></label>
@@ -123,6 +125,30 @@ function render() {
     drawQR(document.getElementById('qr-' + i), urlFor(it.token));
     document.getElementById('word-' + i).oninput = e => { it.word = e.target.value; keep(); };
     document.getElementById('memo-' + i).oninput = e => { it.memo = e.target.value; keep(); };
+    document.getElementById('tok-' + i).onchange = async e => {
+      const t = e.target.value.trim();
+      if (t === it.token) return;
+      if (!t || /[\s#]/.test(t)) { e.target.value = it.token; return say('ng', '合言葉には空白と「#」は使えません'); }
+      if (sec.entries.some((x, k) => k !== i && x.token === t)) { e.target.value = it.token; return say('ng', 'その合言葉は別のQRコードで使っています'); }
+      // 画像は合言葉で暗号化しているので、新しい合言葉で暗号化し直す
+      if (it.img) {
+        say('', '画像を新しい合言葉で暗号化し直しています…');
+        try {
+          let bytes;
+          if (pending.has(it.img.f)) bytes = await MB.openBytes(sec.salt, it.token, it.img.iv, pending.get(it.img.f));
+          else {
+            const res = await fetch(it.img.f, { cache: 'no-store' }); if (!res.ok) throw 0;
+            bytes = await MB.openBytes(sec.salt, it.token, it.img.iv, new Uint8Array(await res.arrayBuffer()));
+          }
+          const { iv, data } = await MB.sealBytes(sec.salt, t, bytes), name = MB.newImageName();
+          pending.set(name, data); previews.set(name, URL.createObjectURL(new Blob([bytes], { type: it.img.type })));
+          it.img = { ...it.img, f: name, iv };
+        } catch (x) { e.target.value = it.token; return say('ng', '画像を読み込めなかったため、合言葉を変更できませんでした。先に画像をアップロードするか、画像を選び直してください。'); }
+      }
+      it.token = t; keep();
+      status = { t: 'ok', x: '合言葉を変更しました。書き出してアップロードしたあと、新しいQRコードを印刷してください。' };
+      render();
+    };
     if (it.img && !previews.has(it.img.f)) loadPreview(it);
   });
   document.getElementById('base').onchange = e => { sec.base = e.target.value.trim(); keep(); render(); };
