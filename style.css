@@ -1,0 +1,56 @@
+/* 黒地に紫の単一テーマ（謎解き解答判定と共通） */
+:root{
+  --bg:#0b0a10; --panel:#15121f; --line:#2c2540; --ink:#ece8f6; --muted:#9a91b3;
+  --purple:#9b6dff; --purple-soft:#2a1f47; --ng:#ff6b8a; --on-purple:#0b0a10; --qr-bg:#ffffff;
+  --f-display:"Shippori Mincho B1","Hiragino Mincho ProN",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.7;
+  background-image:radial-gradient(ellipse at 50% 0%, var(--purple-soft), transparent 60%);background-repeat:no-repeat;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{min-height:100vh;display:grid;place-items:center;padding-inline:16px;padding-block:32px}
+.panel{width:100%;max-width:460px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:40px 24px;display:flex;flex-direction:column;gap:22px}
+.panel.wide{max-width:720px;padding:32px 24px}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.3em;color:var(--muted)}
+.show{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+.word{margin:0;font-family:var(--f-display);font-weight:800;font-size:clamp(2.2rem,11vw,3.6rem);line-height:1.25;color:var(--purple);letter-spacing:.08em;overflow-wrap:anywhere;text-wrap:balance}
+.rule{width:48px;height:2px;background:var(--purple);opacity:.6}
+.wait{margin:0;font-family:var(--f-display);font-size:1.5rem}
+.sub-t{margin:0;color:var(--muted);font-size:.9rem}
+.ngt{color:var(--ng)}
+.flash{animation:flash .6s ease-out}
+@keyframes flash{from{transform:scale(1.12);opacity:0;filter:blur(4px)}to{transform:scale(1);opacity:1;filter:none}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+input::placeholder{color:var(--muted)}
+input:focus{outline:none;border-color:var(--purple)}
+button,.btn{font:inherit;font-weight:700;padding:12px 16px;border:0;border-radius:6px;background:var(--purple);color:var(--on-purple);cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{filter:brightness(1.1)}
+button:focus-visible,input:focus-visible,a:focus-visible,label.file:focus-within{outline:2px solid var(--purple);outline-offset:2px}
+button.sub,a.sub,label.file{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:400;font-size:.82rem;padding:7px 11px;border-radius:6px;cursor:pointer;text-decoration:none}
+button.sub:hover,a.sub:hover,label.file:hover{color:var(--ink);border-color:var(--purple)}
+label.file input{display:none}
+.row{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.row.end{justify-content:flex-end}
+.row.start{justify-content:flex-start}
+.msg{margin:0;min-height:1.7em;text-align:center;font-size:.95rem}
+.msg.ng{color:var(--ng)} .msg.ok{color:var(--purple)}
+.adminhead h1{margin:0;font-family:var(--f-display);font-size:1.6rem;color:var(--purple)}
+.lead{margin:0;color:var(--muted);font-size:.88rem}
+.lead ol{margin:6px 0 0;padding-left:1.4em}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+.item{border:1px solid var(--line);border-radius:6px;padding:16px;display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:start}
+.item .qr{width:132px;height:132px;background:var(--qr-bg);border-radius:4px;display:grid;place-items:center}
+.item .qr canvas{width:120px;height:120px;image-rendering:pixelated}
+.item .fields{display:flex;flex-direction:column;gap:10px;min-width:0}
+.item header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.item h2{margin:0;font-family:var(--f-mono);font-size:.8rem;letter-spacing:.2em;color:var(--purple)}
+.url{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);overflow-wrap:anywhere;user-select:all}
+.empty{text-align:center;color:var(--muted);margin:0;padding:16px;border:1px dashed var(--line);border-radius:6px}
+.box{border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.box h3{margin:0;font-size:.95rem}
+@media (max-width:520px){.item{grid-template-columns:1fr}.item .qr{justify-self:center}}
